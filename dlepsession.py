@@ -534,6 +534,9 @@ class DLEPSession:
                 DataItemType.LATENCY                  : Latency,
                 DataItemType.MAC_ADDRESS              : MacAddress,
                 DataItemType.IPV4_ADDRESS             : IPv4Address,
+                DataItemType.RESOURCES                : Resources,
+                DataItemType.RELATIVE_LINK_QUALITY_RX : RelativeLinkQualityRX,
+                DataItemType.RELATIVE_LINK_QUALITY_TX : RelativeLinkQualityTX,
                 DataItemType.LOSS_RATE                : LossRate,
                 }
 

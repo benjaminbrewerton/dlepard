@@ -587,6 +587,151 @@ class IPv4Address(DataItem):
         return self.len
 
 
+###############################################################################
+class Resources(DataItem):
+    """
+    DataItemType.RESOURCES
+
+
+     0                   1                   2                   3
+     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    | Data Item Type                | Length                        |
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    |     RES       |
+    +-+-+-+-+-+-+-+-+
+
+    Data Item Type:  17
+
+    Length:  1
+
+    Resources:  An 8-bit unsigned integer percentage, 0-100, representing
+       the amount of resources available.  Any value greater than 100
+       MUST be considered as invalid.
+
+    If a device cannot calculate Resources, this Data Item MUST NOT
+    be issued.
+    """
+    def __init__(self, resources=0):
+        super().__init__(
+                int(DataItemType.RESOURCES),
+                1
+                )
+        self.resources = resources
+
+    def to_buffer(self):
+        packet = bytearray()
+        packet.extend(struct.pack("!HHb",
+                                  int(self.type),  # 0: Data Item Type
+                                  self.len,        # 1: Length
+                                  self.resources,  # 2: Value
+                                  ))
+        return packet
+
+    def from_buffer(self, buffer):
+        if len(buffer) < 1:
+            log.error("RX: DataItem Resources.from_buffer()"
+                      "FAILED - Message too small")
+            return 0
+
+        unpacked_data = struct.unpack('!HHb', buffer)
+        self.type = DataItemType(unpacked_data[0])
+        self.len = unpacked_data[1]
+        self.resources = unpacked_data[2]
+        log.debug("RX: Resources %d", self.resources)
+        if self.resources > 100:
+            log.warning("Resources value is invalid. (> 100)")
+        return self.len
+
+
+###############################################################################
+# DataItemType.RELATIVE_LINK_QUALITY_RX,
+
+#    0                   1                   2                   3
+#    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+#   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+#   | Data Item Type                | Length                        |
+#   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+#   |     RLQR      |
+#   +-+-+-+-+-+-+-+-+
+
+class RelativeLinkQualityRX(DataItem):
+    def __init__(self, qual=0):
+        super().__init__(
+                int(DataItemType.RELATIVE_LINK_QUALITY_RX),
+                1
+                )
+        self.qual = qual
+
+    def to_buffer(self):
+        packet = bytearray()
+        packet.extend(struct.pack("!HHb",
+                                  int(self.type),  # 0: Data Item Type
+                                  self.len,        # 1: Length
+                                  self.qual,       # 2: Value
+                                  ))
+        return packet
+
+    def from_buffer(self, buffer):
+        if len(buffer) < 1:
+            log.error("RX: DataItem RelativeLinkQualityRX.from_buffer()"
+                      "FAILED - Message too small")
+            return 0
+
+        unpacked_data = struct.unpack('!HHb', buffer)
+        self.type = DataItemType(unpacked_data[0])
+        self.len = unpacked_data[1]
+        self.qual = unpacked_data[2]
+        log.debug("RX: RelativeLinkQualityRX %d", self.qual)
+        if self.qual > 100:
+            log.warning("Relative Link Quality (Receive) is invalid. (> 100)")
+        return self.len
+
+
+###############################################################################
+# DataItemType.RELATIVE_LINK_QUALITY_TX,
+
+#    0                   1                   2                   3
+#    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+#   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+#   | Data Item Type                | Length                        |
+#   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+#   |     RLQT      |
+#   +-+-+-+-+-+-+-+-+
+
+class RelativeLinkQualityTX(DataItem):
+    def __init__(self, qual=0):
+        super().__init__(
+                int(DataItemType.RELATIVE_LINK_QUALITY_TX),
+                1
+                )
+        self.qual = qual
+
+    def to_buffer(self):
+        packet = bytearray()
+        packet.extend(struct.pack("!HHb",
+                                  int(self.type),  # 0: Data Item Type
+                                  self.len,        # 1: Length
+                                  self.qual,       # 2: Value
+                                  ))
+        return packet
+
+    def from_buffer(self, buffer):
+        if len(buffer) < 1:
+            log.error("RX: DataItem RelativeLinkQualityTX.from_buffer()"
+                      "FAILED - Message too small")
+            return 0
+
+        unpacked_data = struct.unpack('!HHb', buffer)
+        self.type = DataItemType(unpacked_data[0])
+        self.len = unpacked_data[1]
+        self.qual = unpacked_data[2]
+        log.debug("RX: RelativeLinkQualityTX %d", self.qual)
+        if self.qual > 100:
+            log.warning("Relative Link Quality (Transmit) is invalid. (> 100)")
+        return self.len
+
+
 ################################################################################
 #  Loss Rate
 
