@@ -136,7 +136,11 @@ class MessagePdu:
             return 0
 
         unpacked_data = struct.unpack('!HH', buffer)
-        self.type = MessageType(unpacked_data[0])
+        try:
+            self.type = MessageType(unpacked_data[0])
+        except ValueError:
+            log.error('MessagePdu.from_buffer() FAILED: unknown message type %d', unpacked_data[0])
+
         self.len = unpacked_data[1]
         return self.len
 

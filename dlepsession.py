@@ -200,7 +200,7 @@ class DLEPSession:
             message: The message received over UDP
             addr: Address from the transmitter
         """
-        log.debug("received something with len {} from {}".format(len(message), addr))
+        log.debug("UDP received something with len {} from {}".format(len(message), addr))
         pdu = SignalPdu()
         pdu.from_buffer(message[:SIGNAL_HEADER_SIZE])
         log.debug("EXTRACTED signal PDU type {} len {}".format(pdu.type,
@@ -223,13 +223,45 @@ class DLEPSession:
         """
         self.reset_heartbeat_watchdog()
 
-        log.debug("received something with len {}".format(len(message)))
-        pdu = MessagePdu()
-        pdu.from_buffer(message[:MESSAGE_HEADER_LENGTH])
-        log.debug("EXTRACTED message PDU type {} len {}".format(pdu.type,
-                                                                pdu.len))
+        log.debug('TCP received something with len %d in state %s', len(message), self.state)
+        pdu_start = pdu_end = 0
 
-        pdu._data_items = self.extract_all_dataitems(message[MESSAGE_HEADER_LENGTH:])
+        while pdu_end < len(message):
+            log.debug('pdu_end: %d len(message): %d', pdu_end, len(message))
+
+            if len(message) < MESSAGE_HEADER_LENGTH:
+                log.error('FAILED with: Message too small')
+                return 0
+
+            unpacked_data = struct.unpack('!HH', message[pdu_start:pdu_start + MESSAGE_HEADER_LENGTH])
+            pdu_type = unpacked_data[0]
+            pdu_len  = unpacked_data[1]
+            pdu_end = pdu_start + MESSAGE_HEADER_LENGTH + pdu_len
+
+            log.debug('Message type: %d, len: %d, end: %d', pdu_type, pdu_len, pdu_end)
+
+            try:
+                known_type = MessageType(pdu_type)
+                log.debug('EXTRACTED message PDU type %s len %d', known_type, pdu_len)
+                pdu = message[pdu_start : pdu_end]
+                self.process_pdu(pdu)
+            except ValueError:
+                log.exception('Unknown PDU type %d', pdu_type)
+            except:
+                log.exception('Err')
+            pdu_start = pdu_end
+
+        log.debug('pdu_end: %d, len(message): %d\n\n', pdu_end, len(message))
+
+    def process_pdu(self, msg):
+        pdu = MessagePdu()
+        pdu.from_buffer(msg[:MESSAGE_HEADER_LENGTH])
+
+        if pdu.type == MessageType.RESERVED:
+            log.error('PDU decode error. Cannot process reserved PDU types.')
+            return
+
+        pdu._data_items = self.extract_all_dataitems(msg[MESSAGE_HEADER_LENGTH:])
 
         if self.state == DlepSessionState.SESSION_INITIALISATION_STATE:
             self.__process_session_init_tcp_message(pdu)
@@ -473,7 +505,7 @@ class DLEPSession:
 
     @staticmethod
     def extract_itemtype_and_length(msgbuf):
-        dataitem_type = DataItemType(int.from_bytes(msgbuf[0:2], 'big'))
+        dataitem_type = int.from_bytes(msgbuf[0:2], 'big')
         length = int.from_bytes(msgbuf[2:4], 'big')
 
         return dataitem_type, length
@@ -490,55 +522,62 @@ class DLEPSession:
         analyzed_len = 0
         all_data_items = []
 
+        item_constructor = {
+                DataItemType.IPV4_CONNECTION_POINT    : DataItemIp4ConnPt,
+                DataItemType.PEER_TYPE                : PeerType,
+                DataItemType.HEARTBEAT_INTERVAL       : HeartbeatInterval,
+                DataItemType.STATUS                   : Status,
+                DataItemType.MAXIMUM_DATA_RATE_RX     : MaximumDatarateReceive,
+                DataItemType.MAXIMUM_DATA_RATE_TX     : MaximumDatarateTransmit,
+                DataItemType.CURRENT_DATA_RATE_RX     : CurrentDatarateReceive,
+                DataItemType.CURRENT_DATA_RATE_TX     : CurrentDatarateTransmit,
+                DataItemType.LATENCY                  : Latency,
+                DataItemType.MAC_ADDRESS              : MacAddress,
+                DataItemType.IPV4_ADDRESS             : IPv4Address,
+                DataItemType.LOSS_RATE                : LossRate,
+                }
+
         while analyzed_len < total_len:
-            item_type_current, length_current_item = self.extract_itemtype_and_length(
-                message[analyzed_len:analyzed_len+16])
+            item_type, length_current_item = self.extract_itemtype_and_length(
+                    message[analyzed_len:analyzed_len+4])
+            try:
+                item_type_current = DataItemType(item_type)
+            except ValueError:
+                log.error('IGNORING unknown data item type: %d', item_type)
+                analyzed_len += DataItem.HEADER_SIZE + length_current_item
+                continue
 
-            log.debug("extracting data item "
-                      "type {} and len {}".format(item_type_current,
-                                                  length_current_item))
+            log.debug("extracting data item type %s, len %d",
+                    item_type_current, length_current_item)
 
-            length_current_item += 4  # we need the type and len fields too
+            item_end_idx = analyzed_len + length_current_item + DataItem.HEADER_SIZE
 
-            if (analyzed_len + length_current_item) > total_len:
+            if item_end_idx > total_len:
                 log.warning("RX: len of Data Item exceeded total buffer len")
                 return all_data_items
 
             item = None
-
-            if item_type_current == DataItemType.IPV4_CONNECTION_POINT:
-                item = DataItemIp4ConnPt()
-            elif item_type_current == DataItemType.PEER_TYPE:
-                item = PeerType()
-            elif item_type_current == DataItemType.HEARTBEAT_INTERVAL:
-                item = HeartbeatInterval()
-            elif item_type_current == DataItemType.STATUS:
-                item = Status()
-            elif item_type_current == DataItemType.MAXIMUM_DATA_RATE_RX:
-                item = MaximumDatarateReceive()
-            elif item_type_current == DataItemType.MAXIMUM_DATA_RATE_TX:
-                item = MaximumDatarateTransmit()
-            elif item_type_current == DataItemType.CURRENT_DATA_RATE_RX:
-                item = CurrentDatarateReceive()
-            elif item_type_current == DataItemType.CURRENT_DATA_RATE_TX:
-                item = CurrentDatarateTransmit()
-            elif item_type_current == DataItemType.LATENCY:
-                item = Latency()
-            elif item_type_current == DataItemType.MAC_ADDRESS:
-                item = MacAddress()
-            elif item_type_current == DataItemType.IPV4_ADDRESS:
-                item = IPv4Address()
-            elif item_type_current == DataItemType.LOSS_RATE:
-                item = LossRate()
+            constructor = item_constructor.get(DataItemType(item_type_current))
+            if constructor:
+                item = constructor()
             else:
-                log.warning("unknown data item type")
+                log.debug('IGNORING Data Item type %s', item_type_current)
 
-            if item is not None:
-                length = analyzed_len + length_current_item
-                item.from_buffer(message[analyzed_len: length])
-                all_data_items.append(item)
-                log.debug("found new data item type {}".format(item.type))
+            if (item and item.len > length_current_item):
+                log.error('Short read. Data Item (%s) length (%d) exceeds remaining message: %s.',
+                        item_type_current, item.len, length_current_item)
+            elif item:
+                try:
+                    item.from_buffer(message[analyzed_len: item_end_idx])
+                    all_data_items.append(item)
+                except struct.error:
+                    log.exception('Decode failed. Returning truncated items.')
+                    return all_data_items
+            else:
+                pass # item skipped
 
-            analyzed_len += length_current_item
+            analyzed_len += DataItem.HEADER_SIZE + length_current_item
+
+            #log.debug('analysed %d/%d message bytes', analyzed_len, total_len)
 
         return all_data_items
