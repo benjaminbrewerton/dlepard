@@ -7,6 +7,8 @@ from signals_messages import *
 from tcpproxy import TCPProxy
 from udpproxy import UDPProxy
 
+import datetime
+from datetime import timezone
 
 class DlepSessionState(IntEnum):
     """
@@ -414,6 +416,7 @@ class DLEPSession:
 
     def get_information_json_string(self):
         json_data = dict()
+        json_data['time'] = datetime.datetime.now(timezone.utc).timestamp()
         json_data['events'] = []
         json_data['destinations'] = []
         json_data['peer'] = {
